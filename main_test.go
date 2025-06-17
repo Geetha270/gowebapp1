@@ -1,33 +1,26 @@
-// Test the main function
+# Build stage
+FROM golang:1.22.5 AS base
 
-package main
+WORKDIR /app
 
-import (
-	"net/http"
-	"net/http/httptest"
-	"testing"
-)
+COPY go.mod ./
+RUN go mod download
 
-func TestMain(t *testing.T) {
-	req, err := http.NewRequest("GET", "/home", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+COPY . .
 
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(homePage)
+RUN go build -o main .
 
-	handler.ServeHTTP(rr, req)
+# Final stage with Alpine (no need to install bash now)
+FROM alpine:latest
 
-	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("handler returned wrong status code: got %v want %v",
-			status, http.StatusOK)
-	}
+# Optional: install bash if you want (not necessary)
+# RUN apk add --no-cache bash
 
-	// Just verify the code not html content
-	expected := "text/html; charset=utf-8"
-	if contentType := rr.Header().Get("Content-Type"); contentType != expected {
-		t.Errorf("handler returned unexpected content type: got %v want %v",
-			contentType, expected)
-	}
-}
+WORKDIR /app
+
+COPY --from=base /app/main .
+COPY --from=base /app/static ./static
+
+EXPOSE 8080
+
+CMD ["./main"]
